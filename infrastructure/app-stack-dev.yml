@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Create dev resources for the webapp application
+
+Parameters:
+  EnvironmentName:
+    Description:   test
+    Type: String
+    Default: dev
+  AppName:
+    Description: test
+    Type: String
+    Default: webapp
+  NetworkStackName:
+    Type: String
+    Description: test
+  EC2KeyPairName:
+    Type: String
+    Description: test
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    Description: test
+
+Resources:
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${AppName}-ec2-role'
+  
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2InstanceRole
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${EnvironmentName}-${AppName}-sg'
+      GroupDescription: !Sub 'Allow HTTP, HTTPS, and SSH for ${AppName} in ${EnvironmentName}'
+      VpcId: !ImportValue 
+        Fn::Sub: '${NetworkStackName}-${EnvironmentName}-VPCID'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${AppName}-sg'
+
+  AppInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref EC2KeyPairName
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SecurityGroupIds:
+        - !Ref AppSecurityGroup
+      SubnetId: 
+        Fn::Select: 
+          - 0
+          - Fn::Split: 
+              - ","
+              - Fn::ImportValue: 
+                  Fn::Sub: "${NetworkStackName}-${EnvironmentName}-PublicSubnetIDs"
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          sudo yum update -y
+          sudo yum install -y ruby wget
+          cd /home/ec2-user
+          wget https://aws-codedeploy-us-east-1.s3.amazonaws.com/latest/install
+          chmod +x ./install
+          sudo ./install auto
+          sudo service codedeploy-agent start
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${AppName}-server'

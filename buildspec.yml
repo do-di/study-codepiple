@@ -1,0 +1,12 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - echo "Không có gì để build. Chỉ cần gom các file lại..."
+
+artifacts:
+  files:
+    - index.html
+    - appspec.yml
+    - 'scripts/**/*'
