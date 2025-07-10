@@ -101,9 +101,7 @@ Resources:
                 Resource: !GetAtt CodeBuildProject.Arn
               - Effect: Allow
                 Action:
-                  - codedeploy:CreateDeployment
-                  - codedeploy:GetDeployment
-                  - codedeploy:GetDeploymentGroup
+                  - codedeploy:*
                 Resource: "*"
               - Effect: Allow
                 Action: [codestar-connections:UseConnection]
